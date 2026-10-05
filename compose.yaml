@@ -1,0 +1,83 @@
+# compose.yaml — the app as a container: the fleet's docker runtime.
+#
+# The fleet runs every app as containers, in the coordinator's private docker (sysbox
+# docker-in-docker): fleet.conf's DOCKER_* commands run this — `docker compose build`, then
+# `docker compose up` in the FOREGROUND. Locally: `PORT=3000 bin/run`, or just
+# `docker compose up --build`.
+#
+# The coordinator forwards its $PORT to the ${PORT}:${PORT} published here, so the app URL,
+# the QA tester and the dashboard reach the container unchanged. The app must listen on
+# 0.0.0.0:$PORT inside the container.
+#
+# The workspace's shared services (Postgres, Redis, MinIO, Mailpit) are reachable from the
+# container under the SAME hostnames the fleet injects: on each run the fleet attaches them
+# to the private docker's network. The variables below are listed WITHOUT values, so compose
+# passes the fleet's own through as is (and leaves out any that are unset). This works on
+# compose's own network only, not a bare `docker run`.
+#
+# WordPress needs MySQL/MariaDB, which the fleet does not provide, so this stack brings its
+# own MariaDB — always, not under a profile: the app waits for it (depends_on + the
+# entrypoint's connect loop). Its data, the uploads and the generated salts live on volumes,
+# so `docker compose down`/up keeps the site; `down -v` starts over.
+services:
+  app:
+    build: .
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: ${PORT:-8080}
+      # the app's public hostname / origin
+      FLEET_APP_HOST:
+      FLEET_APP_URL:
+      # the workspace's shared services, from the fleet
+      DATABASE_URL:
+      PGHOST:
+      PGPORT:
+      PGUSER:
+      PGPASSWORD:
+      PGDATABASE:
+      REDIS_URL:
+      S3_ENDPOINT:
+      S3_BUCKET:
+      AWS_ACCESS_KEY_ID:
+      AWS_SECRET_ACCESS_KEY:
+      AWS_REGION:
+      SMTP_HOST:
+      SMTP_PORT:
+      SMTP_URL:
+      # this app's own settings
+      WORDPRESS_DB_HOST: ${WORDPRESS_DB_HOST:-db}
+      WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME:-wordpress}
+      WORDPRESS_DB_USER: ${WORDPRESS_DB_USER:-wordpress}
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:-wordpress}
+      WORDPRESS_DEBUG:
+      WORDPRESS_SITE_TITLE:
+      WORDPRESS_ADMIN_USER:
+      WORDPRESS_ADMIN_PASSWORD:
+      WORDPRESS_ADMIN_EMAIL:
+    volumes:
+      - wp-uploads:/app/wp-content/uploads
+      - wp-private:/app/private
+
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: ${WORDPRESS_DB_NAME:-wordpress}
+      MARIADB_USER: ${WORDPRESS_DB_USER:-wordpress}
+      MARIADB_PASSWORD: ${WORDPRESS_DB_PASSWORD:-wordpress}
+      MARIADB_RANDOM_ROOT_PASSWORD: "1"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+    volumes:
+      - db-data:/var/lib/mysql
+
+volumes:
+  wp-uploads:
+  wp-private:
+  db-data:

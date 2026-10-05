@@ -1,0 +1,10 @@
+.git
+.github
+.fleet
+.fleet-deploy.log
+private
+wp-content/uploads
+wp-admin
+wp-includes
+.env
+*.log
