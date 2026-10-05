@@ -1,3 +1,19 @@
+# WordPress core: the Dockerfile (or `wp core download --skip-content`) puts it back.
+/wp-admin/
+/wp-includes/
+/index.php
+/license.txt
+/readme.html
+/xmlrpc.php
+/wp-*.php
+!/wp-config.php
+
+# Site data
+/wp-content/uploads/
+/wp-content/upgrade/
+/private/
+
 .env
 .fleet/
 .fleet-deploy.log
+*.log
