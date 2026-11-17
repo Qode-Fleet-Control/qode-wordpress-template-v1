@@ -25,8 +25,13 @@ COPY --chown=app:app wp-content ./wp-content
 # The entrypoint lives outside the docroot (/app is served as is).
 COPY docker/entrypoint.sh /usr/local/bin/wordpress-entrypoint.sh
 RUN mkdir -p private wp-content/uploads
+# KEEP THIS: one log line per request (status + duration) is what the workspace Monitoring tab charts.
+# docker/request-log.caddyfile turns on Caddy's JSON access log on stdout; the stock Caddyfile
+# imports it into its site block through CADDY_SERVER_EXTRA_DIRECTIVES.
+COPY docker/request-log.caddyfile /etc/frankenphp/request-log.caddyfile
+ENV CADDY_SERVER_EXTRA_DIRECTIVES="import /etc/frankenphp/request-log.caddyfile"
 ARG BUILD_ID=""
-# private/ (the generated salts) sits in the docroot, beside wp-config.php: never serve it.
-ENV PORT=8080 SERVER_ROOT=/app CADDY_SERVER_EXTRA_DIRECTIVES="respond /private/* 404" BUILD_ID=$BUILD_ID
+# private/ (the generated salts) is kept out of the web by docker/request-log.caddyfile.
+ENV PORT=8080 SERVER_ROOT=/app BUILD_ID=$BUILD_ID
 EXPOSE 8080
 ENTRYPOINT ["wordpress-entrypoint.sh"]
